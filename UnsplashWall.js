@@ -69,7 +69,8 @@ export default function UnsplashWall({q}) {
     const IMAGE_SPACING = COLUMN_WIDTH * 0.005;
     const COL_WIDTH = COLUMN_WIDTH - (IMAGE_SPACING / 2);
 
-    const [cols, setCols] = useState(Array(columns).fill(columns).map(_ => ({bricks: [], colHeight: 0})));
+    const initialCols = Array(columns).fill(columns).map(_ => ({bricks: [], colHeight: 0}));
+    const [cols, setCols] = useState(initialCols);
 
     const layoutBricks = (images) => {
         const newCols = [...cols];
@@ -93,36 +94,39 @@ export default function UnsplashWall({q}) {
         setCols(newCols);
     }
 
-    const search = async () => {
+    const search = async (page) => {
         setLoading(true);
-        let response = await Fetch('GET', '/search/photos?query='
-            + encodeURI(q) + '&lang=pl&page=' + page, {}, null);
-        setErrors(response.errors ?? []);
-        if (response.results !== undefined) {
-            const images = response.results.map(i => i.urls.small);
-            setMaxPage(response.total_pages ?? 0);
-            layoutBricks(await processImages(images.map(url => ({id: md5(url), url}))));
-        } else {
-            layoutBricks([]);
+        let bricks = [];
+        if (!_.isEmpty(q)) {
+            let uri = '/search/photos?query=' + encodeURI(q) + '&lang=pl&page=' + page;
+            let response = await Fetch('GET', uri, {}, null);
+            setErrors(response.errors ?? []);
+            if (response.results !== undefined) {
+                const images = response.results.map(i => i.urls.small);
+                // noinspection JSUnresolvedVariable
+                setMaxPage(response.total_pages ?? 0);
+                bricks = await processImages(images.map(url => ({id: md5(url), url})));
+            }
         }
+        layoutBricks(bricks);
         setLoading(false);
     }
-
 
     const handleOnScroll = async ({nativeEvent}) => {
         if (isCloseToBottom(nativeEvent)) {
             if (page < maxPage) {
-                console.log('request for next page');
                 setPage(page + 1);
-                await search();
+                await search(page + 1);
             }
         }
     }
 
     useEffect(() => {
         setPage(1);
+        setCols(initialCols);
+        setMaxPage(0);
         // noinspection JSIgnoredPromiseFromCall
-        search(q);
+        search(1);
     }, [q]);
 
     return (
